@@ -11,6 +11,9 @@ import java.io.OutputStream;
 import java.net.URL;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 
 import org.apache.commons.compress.archivers.ArchiveEntry;
 import org.apache.commons.compress.archivers.ArchiveException;
@@ -24,34 +27,89 @@ import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
 import org.apache.maven.plugin.logging.Log;
 import org.apache.maven.plugins.annotations.Mojo;
+import org.apache.maven.plugins.annotations.Parameter;
 import org.codehaus.plexus.util.IOUtil;
 
 import oshi.PlatformEnum;
 import oshi.SystemInfo;
 
 /**
- * Says "Hi" to the user.
+ * Runs a FOSSA analysis on the current project.
  */
 @Mojo(name = "analyze")
 public class FossaMavenPlugin extends AbstractMojo {
-  // public enum CliSource {
-  //   INSTALL,
-  //   LOCAL
-  // }
+  public enum CliSource {
+    INSTALL,
+    LOCAL,
+  }
 
-  // @Parameter(property = "analyze.cli", defaultValue = "INSTALL")
-  // private CliSource cliSource;
+  @Parameter(property = "analyze.cliSource", defaultValue = "INSTALL")
+  private CliSource cliSource;
 
-  // @Parameter(property = "analyze.localCliPath")
-  // private File localCliPath;
+  @Parameter(property = "analyze.localCliPath")
+  private File localCliPath;
 
-  // @Parameter(property = "analyze.cliVersion")
-  // private String cliVersion;
+  @Parameter(property = "analyze.cliVersion", defaultValue = "v0.7.3-1")
+  private String cliVersion;
 
-  // @Parameter(property = "analyze.configurationFile", defaultValue = ".fossa.yml")
-  // private File configurationFile;
+  @Parameter(property = "analyze.apiKey")
+  private String apiKey;
+
+  @Parameter(property = "analyze.configurationFile")
+  private File configurationFile;
 
   public void execute() throws MojoExecutionException, MojoFailureException {
+    Log log = getLog();
+
+    // Load CLI.
+    String cli;
+    switch (cliSource) {
+      case INSTALL:
+        cli = install(this.cliVersion).toString();
+        break;
+      case LOCAL:
+        if (localCliPath == null) {
+          throw new MojoFailureException("local CLI is specified, but no path is provided");
+        }
+        cli = localCliPath.getPath();
+        break;
+      default:
+        throw new MojoExecutionException("unable to parse CLI source");
+    }
+
+    // Execute CLI in current project.
+    try {
+      List<String> args = Arrays.asList(cli.toString());
+      if (this.configurationFile != null) {
+        args.add("--config");
+        args.add(this.configurationFile.getAbsolutePath());
+      }
+      ProcessBuilder pb = new ProcessBuilder(args);
+      pb.redirectErrorStream(true);
+
+      log.debug("API key: " + this.apiKey);
+      Map<String, String> env = pb.environment();
+      if (this.apiKey != null && this.apiKey.length() > 0) {
+        env.put("FOSSA_API_KEY", this.apiKey);
+      }
+
+      log.debug("Running CLI");
+      Process proc = pb.start();
+      BufferedReader output = new BufferedReader(new InputStreamReader(proc.getInputStream()));
+      String line;
+      while ((line = output.readLine()) != null) {
+        log.info(line);
+      }
+      int exitCode = proc.waitFor();
+      log.debug("Exit code: " + exitCode);
+    } catch (IOException e) {
+      throw new MojoFailureException("failed to run analysis", e);
+    } catch (InterruptedException e) {
+      throw new MojoFailureException("caught interrupt", e);
+    }
+  }
+
+  private Path install(String version) throws MojoExecutionException {
     Log log = getLog();
 
     // Detect OS.
@@ -88,7 +146,6 @@ public class FossaMavenPlugin extends AbstractMojo {
     log.debug("Detected architecture: " + arch);
 
     // Construct download URL.
-    String version = "v0.7.3-1";
     String url = "https://github.com/fossas/fossa-cli/releases/download/" + version + "/fossa-cli_"
         + version.substring(1) + "_" + os + "_" + arch + "." + format;
     log.debug("Download URL: " + url);
@@ -137,24 +194,6 @@ public class FossaMavenPlugin extends AbstractMojo {
       throw new MojoExecutionException("error while installing CLI", e);
     }
 
-    // Execute CLI in current project.
-    try {
-      ProcessBuilder pb = new ProcessBuilder(cli.toString());
-      pb.redirectErrorStream(true);
-      log.debug("API key: " + System.getenv("FOSSA_API_KEY"));
-      log.debug("Running CLI");
-      Process proc = pb.start();
-      BufferedReader output = new BufferedReader(new InputStreamReader(proc.getInputStream()));
-      String line;
-      while ((line = output.readLine()) != null) {
-        log.info(line);
-      }
-      int exitCode = proc.waitFor();
-      log.debug("Exit code: " + exitCode);
-    } catch (IOException e) {
-      throw new MojoFailureException("failed to run analysis", e);
-    } catch (InterruptedException e) {
-      throw new MojoFailureException("caught interrupt", e);
-    }
+    return cli;
   }
 }
