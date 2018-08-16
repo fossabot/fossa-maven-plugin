@@ -11,7 +11,7 @@ import java.io.OutputStream;
 import java.net.URL;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Arrays;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
@@ -38,61 +38,98 @@ import oshi.SystemInfo;
  */
 @Mojo(name = "analyze")
 public class FossaMavenPlugin extends AbstractMojo {
-  public enum CliSource {
-    INSTALL,
-    LOCAL,
+  public enum Source {
+    INSTALL, LOCAL,
   }
 
-  @Parameter(property = "analyze.cliSource", defaultValue = "INSTALL")
-  private CliSource cliSource;
+  public enum Mode {
+    OUTPUT, UPLOAD,
+  }
 
-  @Parameter(property = "analyze.localCliPath")
-  private File localCliPath;
+  @Parameter(property = "analyze.source", defaultValue = "INSTALL")
+  private Source source;
 
-  @Parameter(property = "analyze.cliVersion", defaultValue = "v0.7.3-1")
-  private String cliVersion;
+  @Parameter(property = "analyze.path")
+  private File path;
+
+  @Parameter(property = "analyze.version", defaultValue = "v0.7.3-1")
+  private String version;
+
+  @Parameter(property = "analyze.mode", defaultValue = "UPLOAD")
+  private Mode mode;
 
   @Parameter(property = "analyze.apiKey")
   private String apiKey;
+
+  @Parameter(property = "analyze.endpoint")
+  private String endpoint;
 
   @Parameter(property = "analyze.configurationFile")
   private File configurationFile;
 
   public void execute() throws MojoExecutionException, MojoFailureException {
     Log log = getLog();
+    log.debug("parameters:");
+    log.debug("source: " + source);
+    log.debug("path: " + path);
+    log.debug("version: " + version);
+    log.debug("mode: " + mode);
+    log.debug("apiKey: " + apiKey);
+    log.debug("endpoint: " + endpoint);
+    log.debug("configurationFile: " + configurationFile);
+    log.debug("cwd: " + System.getProperty("user.dir"));
 
     // Load CLI.
     String cli;
-    switch (cliSource) {
-      case INSTALL:
-        cli = install(this.cliVersion).toString();
-        break;
-      case LOCAL:
-        if (localCliPath == null) {
-          throw new MojoFailureException("local CLI is specified, but no path is provided");
-        }
-        cli = localCliPath.getPath();
-        break;
-      default:
-        throw new MojoExecutionException("unable to parse CLI source");
+    switch (source) {
+    case INSTALL:
+      cli = install(this.version).toString();
+      break;
+    case LOCAL:
+      if (path == null) {
+        throw new MojoFailureException("local CLI is specified, but no path is provided");
+      }
+      cli = path.getPath();
+      break;
+    default:
+      throw new MojoExecutionException("unable to parse CLI source");
     }
 
     // Execute CLI in current project.
     try {
-      List<String> args = Arrays.asList(cli.toString());
+      log.debug("Building command");
+      // Build command: add flags, set environment, etc.
+      List<String> args = new LinkedList<String>();
+      args.add(cli.toString());
       if (this.configurationFile != null) {
+        log.debug("Adding configuration file: " + this.configurationFile.getAbsolutePath());
         args.add("--config");
         args.add(this.configurationFile.getAbsolutePath());
       }
+      if (this.endpoint != null) {
+        log.debug("Adding endpoint: " + this.endpoint);
+        args.add("--endpoint");
+        args.add(this.endpoint);
+      }
+      switch (this.mode) {
+        case OUTPUT:
+          log.debug("Adding output flag");
+          args.add("--output");
+          break;
+        case UPLOAD:
+          break;
+        default:
+          throw new MojoExecutionException("unable to parse CLI mode");
+      }
+      log.debug("Done adding flags");
       ProcessBuilder pb = new ProcessBuilder(args);
       pb.redirectErrorStream(true);
-
-      log.debug("API key: " + this.apiKey);
       Map<String, String> env = pb.environment();
       if (this.apiKey != null && this.apiKey.length() > 0) {
         env.put("FOSSA_API_KEY", this.apiKey);
       }
 
+      // Run command.
       log.debug("Running CLI");
       Process proc = pb.start();
       BufferedReader output = new BufferedReader(new InputStreamReader(proc.getInputStream()));
@@ -111,6 +148,7 @@ public class FossaMavenPlugin extends AbstractMojo {
 
   private Path install(String version) throws MojoExecutionException {
     Log log = getLog();
+    log.info("Loading latest FOSSA CLI");
 
     // Detect OS.
     String os;
@@ -175,6 +213,9 @@ public class FossaMavenPlugin extends AbstractMojo {
         if (entry.getName().trim().equals("fossa")) {
           log.debug("Installing CLI");
           File fossa = new File(cli.toString());
+          if (fossa.exists()) {
+            fossa.delete();
+          }
           OutputStream tmpStream = new FileOutputStream(fossa);
           IOUtil.copy(unarchived, tmpStream);
           fossa.setExecutable(true);
@@ -194,6 +235,7 @@ public class FossaMavenPlugin extends AbstractMojo {
       throw new MojoExecutionException("error while installing CLI", e);
     }
 
+    log.debug("CLI installed");
     return cli;
   }
 }
