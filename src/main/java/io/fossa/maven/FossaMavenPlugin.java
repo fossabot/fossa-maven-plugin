@@ -8,12 +8,18 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.lang.reflect.Type;
 import java.net.URL;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+
+import com.google.gson.Gson;
+import com.google.gson.JsonParseException;
+import com.google.gson.reflect.TypeToken;
 
 import org.apache.commons.compress.archivers.ArchiveEntry;
 import org.apache.commons.compress.archivers.ArchiveException;
@@ -52,7 +58,7 @@ public class FossaMavenPlugin extends AbstractMojo {
   @Parameter(property = "analyze.path")
   private File path;
 
-  @Parameter(property = "analyze.version", defaultValue = "v0.7.3-1")
+  @Parameter(property = "analyze.version", defaultValue = "v0.7.3-2")
   private String version;
 
   @Parameter(property = "analyze.mode", defaultValue = "UPLOAD")
@@ -66,6 +72,24 @@ public class FossaMavenPlugin extends AbstractMojo {
 
   @Parameter(property = "analyze.configurationFile")
   private File configurationFile;
+
+  public static class Result {
+    public int exitCode;
+    public Collection<Analysis> output;
+    public String stdout;
+    public String stderr;
+
+    public Result() {
+      stdout = "";
+      stderr = "";
+    }
+  }
+
+  private Result output;
+
+  public Result getResult() {
+    return output;
+  }
 
   public void execute() throws MojoExecutionException, MojoFailureException {
     Log log = getLog();
@@ -83,7 +107,7 @@ public class FossaMavenPlugin extends AbstractMojo {
     String cli;
     switch (source) {
     case INSTALL:
-      cli = install(this.version).toString();
+      cli = install(version).toString();
       break;
     case LOCAL:
       if (path == null) {
@@ -98,47 +122,79 @@ public class FossaMavenPlugin extends AbstractMojo {
     // Execute CLI in current project.
     try {
       log.debug("Building command");
-      // Build command: add flags, set environment, etc.
+      // Build command: add flags.
       List<String> args = new LinkedList<String>();
       args.add(cli.toString());
-      if (this.configurationFile != null) {
-        log.debug("Adding configuration file: " + this.configurationFile.getAbsolutePath());
+      if (configurationFile != null) {
+        log.debug("Adding configuration file: " + configurationFile.getAbsolutePath());
         args.add("--config");
-        args.add(this.configurationFile.getAbsolutePath());
+        args.add(configurationFile.getAbsolutePath());
       }
-      if (this.endpoint != null) {
-        log.debug("Adding endpoint: " + this.endpoint);
+      if (endpoint != null) {
+        log.debug("Adding endpoint: " + endpoint);
         args.add("--endpoint");
-        args.add(this.endpoint);
+        args.add(endpoint);
       }
-      switch (this.mode) {
-        case OUTPUT:
-          log.debug("Adding output flag");
-          args.add("--output");
-          break;
-        case UPLOAD:
-          break;
-        default:
-          throw new MojoExecutionException("unable to parse CLI mode");
+      switch (mode) {
+      case OUTPUT:
+        log.debug("Adding output flag");
+        args.add("--output");
+        break;
+      case UPLOAD:
+        break;
+      default:
+        throw new MojoExecutionException("unable to parse CLI mode");
       }
       log.debug("Done adding flags");
+
+      // Build command: set environment.
       ProcessBuilder pb = new ProcessBuilder(args);
-      pb.redirectErrorStream(true);
       Map<String, String> env = pb.environment();
-      if (this.apiKey != null && this.apiKey.length() > 0) {
-        env.put("FOSSA_API_KEY", this.apiKey);
+      if (apiKey != null && apiKey.length() > 0) {
+        env.put("FOSSA_API_KEY", apiKey);
       }
 
       // Run command.
       log.debug("Running CLI");
       Process proc = pb.start();
-      BufferedReader output = new BufferedReader(new InputStreamReader(proc.getInputStream()));
-      String line;
-      while ((line = output.readLine()) != null) {
-        log.info(line);
+
+      // Read output.
+      BufferedReader stdout = new BufferedReader(new InputStreamReader(proc.getInputStream()));
+      BufferedReader stderr = new BufferedReader(new InputStreamReader(proc.getInputStream()));
+      boolean keepReading = true;
+      Result result = new Result();
+      do {
+        if (stdout.ready()) {
+          String line = stdout.readLine();
+          log.info("[FOSSA] " + line);
+          result.stdout = result.stdout.concat(line);
+        }
+        if (stderr.ready()) {
+          String line = stderr.readLine();
+          log.info("[FOSSA: STDERR] " + line);
+          result.stderr = result.stderr.concat(line);
+        }
+        keepReading = stdout.ready() || stderr.ready() || proc.isAlive();
+      } while (keepReading);
+      result.exitCode = proc.waitFor();
+      log.debug("Exit code: " + result.exitCode);
+
+      // Parse output.
+      Gson gson = new Gson();
+      try {
+        log.debug("Parsing output");
+        Type analyses = new TypeToken<Collection<Analysis>>() {
+        }.getType();
+        result.output = gson.fromJson(result.stdout, analyses);
+        if (result.output == null) {
+          log.warn("Could not parse CLI output");
+        } else {
+          log.debug("Parsing output succeeded");
+        }
+      } catch (JsonParseException e) {
+        log.error("Exception while parsing CLI output", e);
       }
-      int exitCode = proc.waitFor();
-      log.debug("Exit code: " + exitCode);
+      output = result;
     } catch (IOException e) {
       throw new MojoFailureException("failed to run analysis", e);
     } catch (InterruptedException e) {
