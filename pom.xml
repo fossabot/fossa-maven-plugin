@@ -7,6 +7,32 @@
   <packaging>maven-plugin</packaging>
 
   <name>FOSSA Maven Plugin</name>
+  <description>
+    A plugin for automatically integrating the FOSSA CLI into Maven builds.
+  </description>
+  <url>https://github.com/fossas/fossa-maven-plugin</url>
+
+  <licenses>
+    <license>
+      <name>The Apache License, Version 2.0</name>
+      <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+    </license>
+  </licenses>
+
+  <developers>
+    <developer>
+      <name>Leo Zhang</name>
+      <email>leo@fossa.io</email>
+      <organization>FOSSA</organization>
+      <organizationUrl>https://fossa.io</organizationUrl>
+    </developer>
+  </developers>
+
+  <scm>
+    <connection>scm:git:git://github.com/fossas/fossa-maven-plugin.git</connection>
+    <developerConnection>scm:git:ssh://github.com:fossas/fossa-maven-plugin.git</developerConnection>
+    <url>http://github.com/fossas/fossa-maven-plugin/tree/master</url>
+  </scm>
 
   <properties>
     <maven.version>3.5.2</maven.version>
@@ -91,6 +117,32 @@
         <configuration>
           <workingDirectory>./src/test/resources/unit/child</workingDirectory>
         </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-source-plugin</artifactId>
+        <version>3.0.1</version>
+        <executions>
+          <execution>
+            <id>attach-sources</id>
+            <goals>
+              <goal>jar-no-fork</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-javadoc-plugin</artifactId>
+        <version>3.0.1</version>
+        <executions>
+          <execution>
+            <id>attach-javadocs</id>
+            <goals>
+              <goal>jar</goal>
+            </goals>
+          </execution>
+        </executions>
       </plugin>
     </plugins>
   </build>
