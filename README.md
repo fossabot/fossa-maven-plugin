@@ -14,17 +14,27 @@ plugin once with the parent POM to integrate with all of its children.
 
 ## Usage
 
+You can install the FOSSA Maven plugin from GitHub using
+[JitPack](https://jitpack.io). An example configuration is provided below:
+
 ```xml
 <project>
   <!-- Other project elements... -->
+	<pluginRepositories>
+		<pluginRepository>
+		    <id>jitpack.io</id>
+		    <url>https://jitpack.io</url>
+		</pluginRepository>
+	</pluginRepositories>
+
   <build>
     <!-- Other build elements... -->
     <plugins>
       <!-- Other plugin elements... -->
       <plugin>
-        <groupId>io.fossa</groupId>
+        <groupId>com.github.fossas</groupId>
         <artifactId>fossa-maven-plugin</artifactId>
-        <version>1.0-SNAPSHOT</version>
+        <version>1.0.0</version>
         <configuration>
           <apiKey>your-key-here</apiKey>
         </configuration>
@@ -42,3 +52,5 @@ plugin once with the parent POM to integrate with all of its children.
   </build>
 </project>
 ```
+
+We are currently in the process of deploying to Maven central.

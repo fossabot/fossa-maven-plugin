@@ -1,7 +1,7 @@
 <project>
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>io.fossa</groupId>
+  <groupId>com.github.fossas</groupId>
   <artifactId>fossa-maven-plugin</artifactId>
   <version>1.0.0-SNAPSHOT</version>
   <packaging>maven-plugin</packaging>
