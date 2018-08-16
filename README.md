@@ -1,3 +1,5 @@
+[![CircleCI](https://circleci.com/gh/fossas/fossa-maven-plugin.svg?style=svg)](https://circleci.com/gh/fossas/fossa-maven-plugin)
+
 # FOSSA Maven plugin
 
 This plugin integrates into Maven to report Maven dependencies in your build. It
