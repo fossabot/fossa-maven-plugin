@@ -1,4 +1,5 @@
 [![CircleCI](https://circleci.com/gh/fossas/fossa-maven-plugin.svg?style=svg)](https://circleci.com/gh/fossas/fossa-maven-plugin)
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Ffossas%2Ffossa-maven-plugin.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Ffossas%2Ffossa-maven-plugin?ref=badge_shield)
 
 # FOSSA Maven plugin
 
@@ -54,3 +55,7 @@ You can install the FOSSA Maven plugin from GitHub using
 ```
 
 We are currently in the process of deploying to Maven central.
+
+
+## License
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Ffossas%2Ffossa-maven-plugin.svg?type=large)](https://app.fossa.io/projects/git%2Bgithub.com%2Ffossas%2Ffossa-maven-plugin?ref=badge_large)
